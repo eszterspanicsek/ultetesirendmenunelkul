@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Esküvői ültetési rend</title>
+  <script src="data.js"></script>
+  <style>
+    :root {
+      --bg: #f7f0ea;
+      --surface: #fffaf6;
+      --primary: #b68663;
+      --primary-dark: #94684a;
+      --text: #3e3028;
+      --border: #e8d7ca;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, 'Times New Roman', serif;
+      background: linear-gradient(180deg, var(--bg), #fbf7f3);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 620px;
+      background: rgba(255,250,246,0.96);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: 0 20px 60px rgba(90, 60, 40, 0.12);
+    }
+    .eyebrow {
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--primary-dark);
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    h1 { margin: 0 0 8px; font-size: 38px; line-height: 1.1; }
+    .meta { margin: 0 0 18px; opacity: .85; font-size: 17px; line-height: 1.35; }
+    .desc { margin: 0 0 24px; font-size: 18px; line-height: 1.6; }
+    .search {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 18px;
+      font-size: 18px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+    input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(182,134,99,.15); }
+    button {
+      border: 0;
+      border-radius: 16px;
+      padding: 16px 18px;
+      font-size: 18px;
+      cursor: pointer;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+    }
+    button:hover { background: var(--primary-dark); }
+    .result {
+      margin-top: 22px;
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 20px;
+      background: #fff;
+      display: none;
+    }
+    .result.show { display: block; }
+    .result-label {
+      font-size: 13px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--primary-dark);
+      margin-bottom: 8px;
+    }
+    .result-table { font-size: 48px; font-weight: 700; line-height: 1; }
+    .result-name { margin-top: 10px; font-size: 18px; }
+    .notfound-title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    .footer { margin-top: 22px; font-size: 15px; opacity: .8; }
+    @media (max-width: 640px) {
+      body { padding: 16px; }
+      .card { padding: 20px; border-radius: 24px; }
+      h1 { font-size: 26px; line-height: 1.08; white-space: nowrap; }
+      .meta { font-size: 13px; line-height: 1.25; white-space: nowrap; }
+      .desc { font-size: 16px; line-height: 1.5; }
+      input, button { font-size: 16px; padding: 15px 16px; }
+      .result-table { font-size: 40px; }
+      .result-name { font-size: 16px; }
+      .footer { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="eyebrow" id="eyebrow"></div>
+    <h1 id="title"></h1>
+    <p class="meta"><span id="couple"></span> · <span id="date"></span> · <span id="venue"></span></p>
+    <p class="desc" id="description"></p>
+
+    <div class="search">
+      <input id="nameInput" type="text" autocomplete="name" />
+      <button id="searchBtn" type="button"></button>
+    </div>
+
+    <section class="result" id="result"></section>
+    <div class="footer" id="footer"></div>
+  </main>
+
+  <script>
+    function getData() {
+      const local = localStorage.getItem('weddingSeatingDataV4');
+      if (local) {
+        try { return JSON.parse(local); } catch (e) {}
+      }
+      return window.WEDDING_APP_DATA;
+    }
+
+    function normalize(text) {
+      return (text || '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ');
+    }
+
+    function renderChrome(data) {
+      const c = data.content, t = data.theme;
+      document.documentElement.style.setProperty('--bg', t.bg);
+      document.documentElement.style.setProperty('--surface', t.surface);
+      document.documentElement.style.setProperty('--primary', t.primary);
+      document.documentElement.style.setProperty('--primary-dark', t.primaryDark);
+      document.documentElement.style.setProperty('--text', t.text);
+      document.documentElement.style.setProperty('--border', t.border);
+      eyebrow.textContent = c.eyebrow || '';
+      title.textContent = c.title || '';
+      couple.textContent = c.coupleName || '';
+      date.textContent = c.date || '';
+      venue.textContent = c.venue || '';
+      description.textContent = c.description || '';
+      nameInput.placeholder = c.searchPlaceholder || 'Név';
+      searchBtn.textContent = c.searchButton || 'Keresés';
+      footer.textContent = c.footer || '';
+    }
+
+    function findGuest(guests, name) {
+      const n = normalize(name);
+      return guests.find(g => normalize(g.name) === n);
+    }
+
+    function showResult(data, guest, searchedName) {
+      const el = document.getElementById('result');
+      const c = data.content;
+      if (guest) {
+        el.innerHTML = `
+          <div class="result-label">${c.resultLabel || 'Asztal'}</div>
+          <div class="result-table">${guest.table}</div>
+          <div class="result-name">${guest.name}</div>
+        `;
+      } else {
+        el.innerHTML = `
+          <div class="notfound-title">${c.notFoundTitle || 'Nincs találat'}</div>
+          <div>${c.notFoundText || ''}</div>
+        `;
+      }
+      el.classList.add('show');
+    }
+
+    const data = getData();
+    renderChrome(data);
+    document.getElementById('searchBtn').addEventListener('click', () => {
+      const guest = findGuest(data.guests || [], document.getElementById('nameInput').value);
+      showResult(data, guest, document.getElementById('nameInput').value);
+    });
+    document.getElementById('nameInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('searchBtn').click();
+    });
+  </script>
+</body>
+</html>
